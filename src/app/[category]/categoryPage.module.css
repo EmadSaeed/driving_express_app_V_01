@@ -1,0 +1,44 @@
+.container {
+    width: 100%;
+    min-height: 100vh;
+}
+
+.categoryHeader {
+    width: 100%;
+    height: 112px;
+    background-color: var(--blue);
+}
+
+.categoryHeaderWrapper {
+    width: 80rem;
+    height: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    margin: auto;
+    display: flex;
+}
+
+.categoryIconWrapper {
+    position: relative;
+    width: 48px;
+    overflow: hidden;
+}
+
+.titleWrapper {
+    margin-left: 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.title {
+    color: var(--white);
+}
+
+.slogan {
+    color: var(--white);
+    font-size: 1rem;
+    line-height: 1rem;
+    padding-top: 0.4rem;
+    padding-left: 0.1rem;
+}

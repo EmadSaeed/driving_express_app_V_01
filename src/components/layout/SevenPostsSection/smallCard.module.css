@@ -1,0 +1,13 @@
+.imgContainer {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 0.55;
+    overflow: hidden;
+}
+
+.title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1.5rem;
+    padding-top: 1rem;
+}

@@ -1,0 +1,17 @@
+/* .container {
+    background-color: var(--white);
+} */
+
+.title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+
+.imgContainer {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 0.56;
+    overflow: hidden;
+}

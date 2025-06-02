@@ -4,11 +4,14 @@ const config: Config = {
   darkMode: ["class"],
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
+      screens: {
+        "md-lg": "900px",
+      },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
         "gradient-conic":
@@ -23,7 +26,7 @@ const config: Config = {
 
       colors: {
         DX_blue: "#171D67",
-        DX_red: "#FF4C00",
+        DX_red: "#FF0000",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

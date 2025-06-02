@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 50.2 50.2">
+  <!-- Generator: Adobe Illustrator 29.4.0, SVG Export Plug-In . SVG Version: 2.1.0 Build 152)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #fff;
+        fill-rule: evenodd;
+      }
+
+      .st1 {
+        fill: #ed2224;
+      }
+    </style>
+  </defs>
+  <rect class="st1" y="0" width="50.2" height="50.2" rx="5" ry="5"/>
+  <polygon class="st0" points="13.2 8.8 8.8 17.3 26 17.3 6.6 36.8 13.4 43.6 32.9 24.1 32.9 41.4 41.4 37 41.4 8.8 13.2 8.8"/>
+</svg>
