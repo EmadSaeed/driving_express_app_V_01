@@ -1,0 +1,692 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// ----------- ENUMS ------------
+enum UserRole {
+  subscriber
+  business_user
+  admin
+  editor
+  author_role
+  guest
+  standard
+}
+
+enum LegalDocumentVersionStatus {
+  draft
+  published
+  archived
+}
+
+// ----------- MODELS ------------
+
+/**
+ * ****************************************************************************************************************
+ * User and account models
+ * ****************************************************************************************************************
+ */
+
+model User {
+  id                  String                     @id @default(uuid()) @db.Uuid
+  name                String?
+  email               String                     @unique
+  email_verified      DateTime?                  @db.Timestamptz(6)
+  image               String?
+  role                UserRole                   @default(standard)
+  author_slug         String?                    @unique
+  bio                 String?
+  social_media_links  Json?
+  created_at          DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime                   @updatedAt @db.Timestamptz(6)
+  accounts            Account[]
+  sessions            Session[]
+  preferences         User_Category_Preference[]
+  posts               Post[]                     @relation("PostAuthor")
+  comments            Comment[]
+  reviews             PostReview[]
+  notifications       Notification[]
+  mediaAssets         MediaAsset[]
+  trackingSessions    TrackingSession[]
+  trackingEvents      TrackingEvent[]
+  activityLogs        ActivityLog[]
+  deviceFingerprints  DeviceFingerprint[]
+  adImpressions       AdImpression[]
+  adClicks            AdClick[]
+  userProfileSegments UserProfileSegment[]
+  userCookieConsents  UserCookieConsent[]
+
+  @@index([email])
+}
+
+model Account {
+  user_id             String   @db.Uuid
+  type                String
+  provider            String
+  provider_account_id String
+  refresh_token       String?
+  access_token        String?
+  expires_at          Int?
+  token_type          String?
+  scope               String?
+  id_token            String?
+  session_state       String?
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @updatedAt @db.Timestamptz(6)
+  user                User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([provider, provider_account_id])
+  @@index([user_id])
+}
+
+model Session {
+  session_token String   @id
+  user_id       String   @db.Uuid
+  expires       DateTime @db.Timestamptz(6)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @updatedAt @db.Timestamptz(6)
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime @db.Timestamptz(6)
+
+  @@id([identifier, token])
+}
+
+model User_Category_Preference {
+  user_id           String   @db.Uuid
+  category_id       String   @db.Uuid
+  preference_set_at DateTime @default(now()) @db.Timestamptz(6)
+  user              User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  category          Category @relation(fields: [category_id], references: [category_id], onDelete: Cascade)
+
+  @@id([user_id, category_id])
+  @@index([category_id])
+}
+
+model UserProfileSegment {
+  user_id          String   @db.Uuid
+  segment_slug     String   @db.VarChar(100)
+  assigned_at      DateTime @default(now()) @db.Timestamptz(6)
+  confidence_score Float?
+  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, segment_slug])
+  @@index([segment_slug])
+}
+
+/**
+ * ****************************************************************************************************************
+ * Category and Tag models
+ * ****************************************************************************************************************
+ */
+
+model Category {
+  category_id        String                     @id @default(uuid()) @db.Uuid
+  name               String                     @db.VarChar(100)
+  slug               String                     @unique @db.VarChar(100)
+  parent_category_id String?                    @db.Uuid
+  parentCategory     Category?                  @relation("CategoryToParent", fields: [parent_category_id], references: [category_id])
+  children           Category[]                 @relation("CategoryToParent")
+  created_at         DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime                   @updatedAt @db.Timestamptz(6)
+  posts              Post[]
+  userPreferences    User_Category_Preference[]
+
+  // Index for fast lookup by parent_category_id
+  @@index([parent_category_id])
+}
+
+model Tag {
+  tag_id     String   @id @default(uuid()) @db.Uuid
+  name       String   @unique @db.VarChar(50)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  posts      Post[]
+}
+
+/**
+ * ****************************************************************************************************************
+ * Post
+ * ****************************************************************************************************************
+ */
+
+model Post {
+  post_id         String               @id @default(uuid()) @db.Uuid
+  title           String               @db.VarChar(255)
+  slug            String               @unique @db.VarChar(255)
+  keywords        String?
+  main_photo_url  String?              @db.VarChar(255)
+  main_photo_alt  String?              @db.VarChar(255)
+  excerpt         String?
+  article_content String
+  is_featured     Boolean              @default(false)
+  category_id     String?              @db.Uuid
+  category        Category?            @relation(fields: [category_id], references: [category_id], onDelete: SetNull)
+  author_id       String?              @db.Uuid
+  author          User?                @relation("PostAuthor", fields: [author_id], references: [id], onDelete: SetNull)
+  view_count      Int                  @default(0)
+  average_rating  Float                @default(0.0)
+  review_count    Int                  @default(0)
+  created_at      DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime             @updatedAt @db.Timestamptz(6)
+  tags            Tag[]
+  tocItems        TableOfContentItem[]
+  articleImages   ArticleImage[]
+  relatedPostsA   RelatedPost[]        @relation("RelatedPostA")
+  relatedPostsB   RelatedPost[]        @relation("RelatedPostB")
+  seoMetadata     SEO_Metadata?
+  comments        Comment[]
+  redirect        Redirect[]
+  schemaMarkup    SchemaMarkup?
+  postReviews     PostReview[]
+
+  // For performance: filter by category, author, is_featured, created_at
+  @@index([category_id])
+  @@index([author_id])
+  @@index([is_featured])
+  @@index([created_at])
+}
+
+model TableOfContentItem {
+  toc_item_id   String   @id @default(uuid()) @db.Uuid
+  post_id       String   @db.Uuid
+  item_html_id  String   @db.VarChar(100)
+  title         String   @db.VarChar(255)
+  display_order Int
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  post          Post     @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
+
+  @@unique([post_id, item_html_id])
+}
+
+model ArticleImage {
+  article_image_id String   @id @default(uuid()) @db.Uuid
+  post_id          String   @db.Uuid
+  image_url        String   @db.VarChar(255)
+  alt_text         String?  @db.VarChar(255)
+  display_order    Int?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  post             Post     @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
+
+  @@index([post_id])
+}
+
+model RelatedPost {
+  post_id_1  String   @db.Uuid
+  post_id_2  String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  postA      Post     @relation("RelatedPostA", fields: [post_id_1], references: [post_id], onDelete: Cascade)
+  postB      Post     @relation("RelatedPostB", fields: [post_id_2], references: [post_id], onDelete: Cascade)
+
+  @@id([post_id_1, post_id_2])
+  @@index([post_id_2])
+}
+
+model SEO_Metadata {
+  seo_metadata_id       String   @id @default(uuid()) @db.Uuid
+  post_id               String   @unique @db.Uuid // <-- Add @unique here!
+  meta_title            String?  @db.VarChar(255)
+  meta_description      String?
+  meta_keywords         String?
+  canonical_url         String?  @db.VarChar(255)
+  opengraph_title       String?  @db.VarChar(255)
+  opengraph_description String?
+  opengraph_image_url   String?  @db.VarChar(255)
+  twitter_card_type     String?  @db.VarChar(50)
+  twitter_title         String?  @db.VarChar(255)
+  twitter_description   String?
+  twitter_image_url     String?  @db.VarChar(255)
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @updatedAt @db.Timestamptz(6)
+  post                  Post     @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
+}
+
+model Comment {
+  comment_id        String    @id @default(uuid()) @db.Uuid
+  post_id           String    @db.Uuid
+  user_id           String    @db.Uuid
+  parent_comment_id String?   @db.Uuid
+  comment_text      String
+  is_approved       Boolean   @default(false)
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @updatedAt @db.Timestamptz(6)
+  post              Post      @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
+  user              User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  parentComment     Comment?  @relation("CommentToParent", fields: [parent_comment_id], references: [comment_id], onDelete: Cascade)
+  replies           Comment[] @relation("CommentToParent")
+
+  @@index([post_id])
+  @@index([user_id])
+  @@index([parent_comment_id])
+}
+
+model PostReview {
+  review_id    String   @id @default(uuid()) @db.Uuid
+  post_id      String   @db.Uuid
+  user_id      String   @db.Uuid
+  rating_value Int      @db.SmallInt
+  title        String?  @db.VarChar(255)
+  content      String?
+  is_approved  Boolean  @default(true)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @updatedAt @db.Timestamptz(6)
+  post         Post     @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([post_id, user_id])
+  @@index([post_id])
+  @@index([user_id])
+  @@index([is_approved])
+}
+
+/**
+ * ****************************************************************************************************************
+ * Media Asset and Navigation models
+ * ****************************************************************************************************************
+ */
+
+model MediaAsset {
+  asset_id           String   @id @default(uuid()) @db.Uuid
+  uploader_user_id   String?  @db.Uuid
+  file_name_original String   @db.VarChar(255)
+  file_name_stored   String   @unique @db.VarChar(255)
+  file_type          String   @db.VarChar(100)
+  file_size_bytes    BigInt
+  storage_path       String   @db.VarChar(1024)
+  public_url         String?  @unique @db.VarChar(2048)
+  alt_text           String?  @db.VarChar(255)
+  caption            String?
+  dimensions         Json?
+  metadata           Json?
+  uploaded_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @updatedAt @db.Timestamptz(6)
+  uploader           User?    @relation(fields: [uploader_user_id], references: [id], onDelete: SetNull)
+
+  @@index([uploader_user_id])
+}
+
+model NavigationMenu {
+  menu_id     String               @id @default(uuid()) @db.Uuid
+  name        String               @unique @db.VarChar(100)
+  description String?
+  created_at  DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime             @updatedAt @db.Timestamptz(6)
+  items       NavigationMenuItem[]
+}
+
+model NavigationMenuItem {
+  item_id        String               @id @default(uuid()) @db.Uuid
+  menu_id        String               @db.Uuid
+  parent_item_id String?              @db.Uuid
+  title          String               @db.VarChar(100)
+  url            String               @db.VarChar(2048)
+  target         String?              @db.VarChar(20)
+  icon_class     String?              @db.VarChar(100)
+  display_order  Int                  @default(0)
+  created_at     DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime             @updatedAt @db.Timestamptz(6)
+  menu           NavigationMenu       @relation(fields: [menu_id], references: [menu_id], onDelete: Cascade)
+  parentItem     NavigationMenuItem?  @relation("MenuItemToParent", fields: [parent_item_id], references: [item_id], onDelete: Cascade)
+  children       NavigationMenuItem[] @relation("MenuItemToParent")
+
+  @@index([menu_id])
+  @@index([parent_item_id])
+}
+
+model SiteSetting {
+  setting_key   String   @id @db.VarChar(100)
+  setting_value Json?
+  description   String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @updatedAt @db.Timestamptz(6)
+}
+
+/**
+ * ****************************************************************************************************************
+ * FAQ and Legal Document models
+ * ****************************************************************************************************************
+ */
+
+model FAQCategory {
+  category_id   String    @id @default(uuid()) @db.Uuid
+  name          String    @unique @db.VarChar(150)
+  slug          String    @unique @db.VarChar(150)
+  description   String?
+  display_order Int       @default(0)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @updatedAt @db.Timestamptz(6)
+  items         FAQItem[]
+}
+
+model FAQItem {
+  item_id         String      @id @default(uuid()) @db.Uuid
+  faq_category_id String      @db.Uuid
+  question        String
+  answer          String
+  is_published    Boolean     @default(true)
+  display_order   Int         @default(0)
+  tags            String?
+  created_at      DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime    @updatedAt @db.Timestamptz(6)
+  category        FAQCategory @relation(fields: [faq_category_id], references: [category_id], onDelete: Cascade)
+
+  @@index([faq_category_id])
+  @@index([is_published])
+}
+
+model LegalDocument {
+  id          String                 @id @default(uuid()) @db.Uuid
+  title       String                 @db.VarChar(255)
+  slug        String                 @unique @db.VarChar(100)
+  description String?
+  created_at  DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime               @updatedAt @db.Timestamptz(6)
+  versions    LegalDocumentVersion[]
+}
+
+model LegalDocumentVersion {
+  id             String                     @id @default(uuid()) @db.Uuid
+  document_id    String                     @db.Uuid
+  version_number String                     @db.VarChar(20)
+  content        String
+  status         LegalDocumentVersionStatus @default(draft)
+  published_at   DateTime?                  @db.Timestamptz(6)
+  effective_date DateTime                   @db.Date
+  change_summary String?
+  created_at     DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime                   @updatedAt @db.Timestamptz(6)
+  document       LegalDocument              @relation(fields: [document_id], references: [id], onDelete: Cascade)
+
+  @@unique([document_id, version_number])
+  @@index([status])
+}
+
+model ContactSubmission {
+  submission_id String   @id @default(uuid()) @db.Uuid
+  name          String?  @db.VarChar(255)
+  email         String?  @db.VarChar(255)
+  subject       String?  @db.VarChar(255)
+  message       String
+  ip_address    String?  @db.VarChar(45)
+  submitted_at  DateTime @default(now()) @db.Timestamptz(6)
+  is_read       Boolean  @default(false)
+  status        String?  @db.VarChar(50)
+  notes         String?
+  updated_at    DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([is_read])
+  @@index([status])
+}
+
+/**
+ * ****************************************************************************************************************
+ * Cookie and Consent models
+ * ****************************************************************************************************************
+ */
+
+model CookieCategory {
+  id            String             @id @default(uuid()) @db.Uuid
+  slug          String             @unique @db.VarChar(50)
+  name          String             @db.VarChar(100)
+  description   String
+  is_essential  Boolean            @default(false)
+  display_order Int                @default(0)
+  created_at    DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime           @updatedAt @db.Timestamptz(6)
+  cookies       CookieDefinition[]
+}
+
+model CookieDefinition {
+  id                 String         @id @default(uuid()) @db.Uuid
+  cookie_category_id String         @db.Uuid
+  name               String         @db.VarChar(100)
+  provider           String         @db.VarChar(100)
+  purpose            String
+  duration           String         @db.VarChar(50)
+  created_at         DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime       @updatedAt @db.Timestamptz(6)
+  category           CookieCategory @relation(fields: [cookie_category_id], references: [id], onDelete: Cascade)
+
+  @@unique([cookie_category_id, name])
+}
+
+model UserCookieConsent {
+  id                       String   @id @default(uuid()) @db.Uuid
+  user_id                  String?  @db.Uuid
+  anonymous_visitor_id     String?  @db.Uuid
+  consented_category_slugs Json?
+  consent_given_at         DateTime @default(now()) @db.Timestamptz(6)
+  consent_last_updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  consent_source           String?  @db.VarChar(50)
+  ip_address               String?  @db.VarChar(45)
+  user_agent               String?
+  consent_version          String?  @db.VarChar(20)
+  user                     User?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([anonymous_visitor_id])
+}
+
+/**
+ * ****************************************************************************************************************
+ * Advertisement and Ad Tracking models
+ * ****************************************************************************************************************
+ */
+
+model Advertisement {
+  ad_id              String         @id @default(uuid()) @db.Uuid
+  advertiser_name    String?
+  campaign_name      String?
+  ad_creative_url    String?
+  ad_html_content    String?
+  landing_page_url   String
+  ad_type            String         @db.VarChar(50)
+  dimensions         String?
+  targeting_criteria Json?
+  start_date         DateTime       @db.Timestamptz(6)
+  end_date           DateTime?
+  is_active          Boolean        @default(true)
+  created_at         DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime       @updatedAt @db.Timestamptz(6)
+  impressions        AdImpression[]
+  clicks             AdClick[]
+}
+
+model AdPlacement {
+  placement_id       String         @id @default(uuid()) @db.Uuid
+  description        String?
+  allowed_ad_types   Json?
+  allowed_dimensions Json?
+  created_at         DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime       @updatedAt @db.Timestamptz(6)
+  impressions        AdImpression[]
+  clicks             AdClick[]
+}
+
+// TrackingSession
+model TrackingSession {
+  session_id           String          @id @default(uuid()) @db.Uuid
+  user_id              String?         @db.Uuid
+  anonymous_visitor_id String?         @db.Uuid
+  start_timestamp      DateTime        @default(now()) @db.Timestamptz(6)
+  end_timestamp        DateTime?
+  ip_address           String?         @db.VarChar(45)
+  user_agent           String?
+  device_type          String?         @db.VarChar(50)
+  browser_name         String?         @db.VarChar(100)
+  os_name              String?         @db.VarChar(100)
+  country_code         String?         @db.VarChar(2)
+  region               String?         @db.VarChar(100)
+  city                 String?         @db.VarChar(100)
+  landing_page_url     String?
+  exit_page_url        String?
+  utm_source           String?         @db.VarChar(255)
+  utm_medium           String?         @db.VarChar(255)
+  utm_campaign         String?         @db.VarChar(255)
+  utm_term             String?         @db.VarChar(255)
+  utm_content          String?         @db.VarChar(255)
+  user                 User?           @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  trackingEvents       TrackingEvent[]
+  adImpressions        AdImpression[]
+  adClicks             AdClick[]
+
+  @@index([user_id])
+  @@index([anonymous_visitor_id])
+}
+
+model TrackingEvent {
+  event_id             String          @id @default(uuid()) @db.Uuid
+  session_id           String          @db.Uuid
+  user_id              String?         @db.Uuid
+  anonymous_visitor_id String?         @db.Uuid
+  event_type           String          @db.VarChar(100)
+  event_timestamp      DateTime        @default(now()) @db.Timestamptz(6)
+  url                  String?
+  element_id           String?         @db.VarChar(255)
+  event_properties     Json?
+  page_title           String?
+  referrer_url         String?
+  session              TrackingSession @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
+  user                 User?           @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([session_id])
+  @@index([user_id])
+  @@index([event_type])
+}
+
+model DeviceFingerprint {
+  fingerprint_id       String   @id @default(uuid()) @db.Uuid
+  user_id              String?  @db.Uuid
+  anonymous_visitor_id String?  @db.Uuid
+  fingerprint_hash     String
+  attributes           Json
+  first_seen_at        DateTime @default(now()) @db.Timestamptz(6)
+  last_seen_at         DateTime @default(now()) @db.Timestamptz(6)
+  ip_address           String?  @db.VarChar(45)
+  user                 User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@unique([fingerprint_hash, ip_address])
+  @@index([user_id])
+  @@index([anonymous_visitor_id])
+}
+
+model AdImpression {
+  impression_id        String           @id @default(uuid()) @db.Uuid
+  ad_id                String           @db.Uuid
+  placement_id         String           @db.Uuid
+  tracking_session_id  String?          @db.Uuid
+  user_id              String?          @db.Uuid
+  anonymous_visitor_id String?          @db.Uuid
+  timestamp            DateTime         @default(now()) @db.Timestamptz(6)
+  page_url             String?
+  ip_address           String?          @db.VarChar(45)
+  ad                   Advertisement    @relation(fields: [ad_id], references: [ad_id], onDelete: Cascade)
+  placement            AdPlacement      @relation(fields: [placement_id], references: [placement_id], onDelete: Restrict)
+  trackingSession      TrackingSession? @relation(fields: [tracking_session_id], references: [session_id], onDelete: SetNull)
+  user                 User?            @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  adClicks             AdClick[]
+
+  @@index([ad_id])
+  @@index([placement_id])
+  @@index([tracking_session_id])
+  @@index([user_id])
+}
+
+model AdClick {
+  click_id              String           @id @default(uuid()) @db.Uuid
+  impression_id         String?          @unique @db.Uuid
+  ad_id                 String           @db.Uuid
+  placement_id          String           @db.Uuid
+  tracking_session_id   String?          @db.Uuid
+  user_id               String?          @db.Uuid
+  anonymous_visitor_id  String?          @db.Uuid
+  timestamp             DateTime         @default(now()) @db.Timestamptz(6)
+  click_destination_url String?
+  ip_address            String?          @db.VarChar(45)
+  impression            AdImpression?    @relation(fields: [impression_id], references: [impression_id], onDelete: SetNull)
+  ad                    Advertisement    @relation(fields: [ad_id], references: [ad_id], onDelete: Cascade)
+  placement             AdPlacement      @relation(fields: [placement_id], references: [placement_id], onDelete: Restrict)
+  trackingSession       TrackingSession? @relation(fields: [tracking_session_id], references: [session_id], onDelete: SetNull)
+  user                  User?            @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([ad_id])
+  @@index([placement_id])
+  @@index([tracking_session_id])
+  @@index([user_id])
+}
+
+/**
+ * ****************************************************************************************************************
+ * Notification and Activity Log models
+ * ****************************************************************************************************************
+ */
+
+model Notification {
+  notification_id     String    @id @default(uuid()) @db.Uuid
+  recipient_user_id   String    @db.Uuid
+  type                String    @db.VarChar(50)
+  title               String?   @db.VarChar(255)
+  message             String
+  link_url            String?   @db.VarChar(2048)
+  related_entity_type String?   @db.VarChar(50)
+  related_entity_id   String?   @db.Uuid
+  is_read             Boolean   @default(false)
+  read_at             DateTime?
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  recipient           User      @relation(fields: [recipient_user_id], references: [id], onDelete: Cascade)
+
+  @@index([recipient_user_id])
+  @@index([is_read])
+}
+
+model ActivityLog {
+  log_id             String   @id @default(uuid()) @db.Uuid
+  user_id            String?  @db.Uuid
+  action_type        String   @db.VarChar(100)
+  target_entity_type String?  @db.VarChar(50)
+  target_entity_id   String?  @db.Uuid
+  details            Json?
+  ip_address         String?  @db.VarChar(45)
+  logged_at          DateTime @default(now()) @db.Timestamptz(6)
+  user               User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([action_type])
+}
+
+model Redirect {
+  redirect_id      String   @id @default(uuid()) @db.Uuid
+  old_slug         String   @unique @db.VarChar(255)
+  new_post_id      String   @db.Uuid
+  http_status_code Int      @default(301)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  post             Post     @relation(fields: [new_post_id], references: [post_id], onDelete: Cascade)
+}
+
+model SchemaMarkup {
+  schema_markup_id String   @id @default(uuid()) @db.Uuid
+  post_id          String   @unique @db.Uuid
+  schema_type      String   @db.VarChar(100)
+  json_ld_data     Json
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @updatedAt @db.Timestamptz(6)
+  post             Post     @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
+}
