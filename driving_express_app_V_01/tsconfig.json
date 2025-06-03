@@ -1,9 +1,0 @@
-graph TD;
-    A[User] -->|Interacts with| B[Web Application]
-    B -->|Fetches Data| C[Database]
-    C -->|Stores| D[User Data]
-    C -->|Stores| E[Content Data]
-    C -->|Stores| F[Media Assets]
-    C -->|Stores| G[Tracking Data]
-    B -->|Sends Notifications| H[Notification Service]
-    B -->|Handles Advertising| I[Ad Management]
